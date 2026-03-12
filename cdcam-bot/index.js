@@ -169,7 +169,11 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         const timestampMs = update.message.date
           ? update.message.date * 1000
           : Date.now();
-        const d = new Date(timestampMs);
+
+        // Ajustar a zona horaria Colombia (UTC-5)
+        const offsetMs = -5 * 60 * 60 * 1000; // -5 horas
+        const localMs = timestampMs + offsetMs;
+        const d = new Date(localMs);
 
         const fecha = d.toISOString().slice(0, 10); // 2026-03-12
         const hora = d.toTimeString().slice(0, 5);  // 10:58
