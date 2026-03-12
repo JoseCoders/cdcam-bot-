@@ -15,6 +15,7 @@ if (!WEBHOOK_SECRET) {
 }
 
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
+const TELEGRAM_FILE_API = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}`;
 
 app.use(bodyParser.json());
 
@@ -24,11 +25,37 @@ function truncar(texto, max = 60) {
   return texto.length > max ? texto.slice(0, max) + '…' : texto;
 }
 
-// Aquí guardamos en memoria el último mensaje
+// Aquí guardamos en memoria el último mensaje (imagen + texto)
 let ultimoItem = {
-  image_url: 'https://tusitio.com/wp-content/uploads/default.jpg', // cámbiala por la que quieras
+  image_url: '', // la llenaremos desde Telegram
   text: ''
 };
+
+// Función para obtener URL pública del archivo (foto) de Telegram
+async function obtenerUrlFoto(photoArray) {
+  if (!photoArray || !Array.isArray(photoArray) || photoArray.length === 0) {
+    return '';
+  }
+
+  // Tomamos la última (normalmente la de mayor resolución)
+  const fileId = photoArray[photoArray.length - 1].file_id;
+
+  // 1) Pedir info del archivo
+  const resp = await axios.get(`${TELEGRAM_API}/getFile`, {
+    params: { file_id: fileId },
+  });
+
+  if (!resp.data.ok) {
+    console.error('Error en getFile:', resp.data);
+    return '';
+  }
+
+  const filePath = resp.data.result.file_path;
+  // 2) Construir URL pública de descarga
+  const fileUrl = `${TELEGRAM_FILE_API}/${filePath}`;
+
+  return fileUrl;
+}
 
 // Webhook de Telegram
 app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
@@ -40,21 +67,40 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
 
   (async () => {
     try {
-      if (update.message && update.message.chat && update.message.text) {
+      if (update.message && update.message.chat) {
         const chatId = update.message.chat.id;
-        const texto = update.message.text;
 
-        // Guardar versión recortada para la web (máx 60 caracteres)
-        ultimoItem.text = truncar(texto, 60);
+        // Caso 1: foto + caption
+        if (update.message.photo) {
+          const fotoUrl = await obtenerUrlFoto(update.message.photo);
+          const caption = update.message.caption || '';
+          const textoRecortado = truncar(caption, 60);
 
-        // (Opcional) si en algún momento quieres que la imagen dependa del mensaje,
-        // aquí podrías cambiar ultimoItem.image_url.
+          ultimoItem.image_url = fotoUrl;
+          ultimoItem.text = textoRecortado;
 
-        // Respuesta al usuario en Telegram
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: 'Mensaje recibido por el webhook ✅',
-        });
+          await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: chatId,
+            text: 'Imagen y texto recibidos por el webhook ✅',
+          });
+
+        // Caso 2: solo texto
+        } else if (update.message.text) {
+          const texto = update.message.text;
+          const textoRecortado = truncar(texto, 60);
+
+          // En este caso no hay imagen nueva; podrías dejar la anterior o una por defecto
+          if (!ultimoItem.image_url) {
+            // Imagen por defecto (opcional)
+            ultimoItem.image_url = 'https://cdcam.co/wp-content/uploads/default.jpg';
+          }
+          ultimoItem.text = textoRecortado;
+
+          await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: chatId,
+            text: 'Mensaje recibido por el webhook ✅',
+          });
+        }
       }
     } catch (err) {
       console.error('Error al procesar update:', err.message);
