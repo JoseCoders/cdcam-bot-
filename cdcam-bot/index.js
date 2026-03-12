@@ -25,8 +25,8 @@ function truncar(texto, max = 60) {
   return texto.length > max ? texto.slice(0, max) + '…' : texto;
 }
 
-// Lista en memoria de los últimos posts válidos (foto + texto)
-// Cada item: { image_url, text, nombre, fecha, hora }
+// Lista en memoria de los últimos posts válidos (media + texto)
+// Cada item: { media_url, media_type, text, nombre, fecha, hora }
 let items = [];
 
 // Mapa en memoria: último timestamp (ms) en que se le mostró el aviso a cada usuario
@@ -35,20 +35,16 @@ const avisosPorUsuario = {};
 const SIETE_HORAS_MS = 7 * 60 * 60 * 1000; // 7 horas en milisegundos
 
 // Añadir un nuevo item y mantener máximo 50
-function agregarItem(image_url, text, nombre, fecha, hora) {
-  items.unshift({ image_url, text, nombre, fecha, hora }); // más reciente primero
+function agregarItem(media_url, media_type, text, nombre, fecha, hora) {
+  items.unshift({ media_url, media_type, text, nombre, fecha, hora }); // más reciente primero
   if (items.length > 50) {
     items.pop(); // elimina el más viejo
   }
 }
 
-// Obtener URL pública de la foto desde Telegram
-async function obtenerUrlFoto(photoArray) {
-  if (!photoArray || !Array.isArray(photoArray) || photoArray.length === 0) {
-    return '';
-  }
-
-  const fileId = photoArray[photoArray.length - 1].file_id;
+// Obtener URL pública de un archivo (foto o video) desde Telegram
+async function obtenerUrlArchivo(fileId) {
+  if (!fileId) return '';
 
   const resp = await axios.get(`${TELEGRAM_API}/getFile`, {
     params: { file_id: fileId },
@@ -103,13 +99,41 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
       const from = update.message.from || {};
       const userId = from.id; // ID único del usuario
 
-      // Solo aceptamos: foto + caption (texto en el mismo mensaje)
-      if (update.message.photo && update.message.caption) {
-        const fotoUrl = await obtenerUrlFoto(update.message.photo);
-        const caption = update.message.caption;
+      const caption = update.message.caption || '';
+      const tieneCaption = caption && caption.trim().length > 0;
+
+      const tieneVideo = !!update.message.video;
+      const tieneFoto =
+        Array.isArray(update.message.photo) && update.message.photo.length > 0;
+
+      // Prioridad: video + caption, luego foto + caption
+      if (tieneCaption && (tieneVideo || tieneFoto)) {
+        let mediaUrl = '';
+        let mediaType = '';
+
+        if (tieneVideo) {
+          // Priorizar video
+          const video = update.message.video;
+          mediaUrl = await obtenerUrlArchivo(video.file_id);
+          mediaType = 'video';
+        } else if (tieneFoto) {
+          // Si no hay video, usar foto (última, de mayor resolución)
+          const fotos = update.message.photo;
+          const lastPhoto = fotos[fotos.length - 1];
+          mediaUrl = await obtenerUrlArchivo(lastPhoto.file_id);
+          mediaType = 'photo';
+        }
+
+        if (!mediaUrl) {
+          // Algo falló al obtener la URL, no guardamos
+          return;
+        }
+
         const textoRecortado = truncar(caption, 60);
 
-        const nombre = from.first_name || 'Productor';
+        // Nombre (solo las primeras 4 letras)
+        let nombre = from.first_name || 'Prod';
+        nombre = nombre.toString().slice(0, 4); // ej: "Camilo" -> "Cami"
 
         const timestampMs = update.message.date
           ? update.message.date * 1000
@@ -120,7 +144,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         const hora = d.toTimeString().slice(0, 5);  // 10:58
 
         // Guardar en la lista de items
-        agregarItem(fotoUrl, textoRecortado, nombre, fecha, hora);
+        agregarItem(mediaUrl, mediaType, textoRecortado, nombre, fecha, hora);
 
         // Respuesta al usuario (publicación correcta)
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
@@ -133,7 +157,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         if (userId && debeEnviarAviso(userId)) {
           await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: chatId,
-            text: 'Para publicar en CDCAM envía una FOTO con el texto en el mismo mensaje.',
+            text: 'Para publicar en CDCAM envía una FOTO o VIDEO con el texto en el mismo mensaje.',
           });
         }
         // Si NO toca avisar (menos de 7 horas), no respondemos nada
