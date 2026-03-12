@@ -180,7 +180,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         // Respuesta al usuario (publicación correcta)
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
-          text: 'Producto publicado en CDCAM correctamente ✅',
+          text: 'Producto publicado en CDCAM.CO correctamente ✅',
         });
 
         // IMPORTANTE: return aquí para que NO siga procesando nada más en este update
@@ -191,7 +191,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
       if (userId && debeEnviarAviso(userId)) {
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
-          text: 'Para publicar en CDCAM envía una FOTO o VIDEO con el texto en el mismo mensaje.',
+          text: 'Para publicar Producto en CDCAM envía una IMAGEN con el TEXTO en el mismo mensaje.',
         });
       }
       // Si NO toca avisar (menos de 7 horas), no respondemos nada
