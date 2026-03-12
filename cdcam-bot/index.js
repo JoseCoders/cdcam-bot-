@@ -155,7 +155,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         }
 
         if (!mediaUrl) {
-          // Algo falló al obtener la URL, no guardamos
+          // Algo falló al obtener la URL, no guardamos ni respondemos
           return;
         }
 
@@ -182,17 +182,20 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
           chat_id: chatId,
           text: 'Producto publicado en CDCAM correctamente ✅',
         });
-      } else {
-        // Mensaje inválido: no se guarda nada
-        // Solo enviamos el aviso si han pasado al menos 7 horas desde el último aviso a este usuario
-        if (userId && debeEnviarAviso(userId)) {
-          await axios.post(`${TELEGRAM_API}/sendMessage`, {
-            chat_id: chatId,
-            text: 'Para publicar en CDCAM envía una FOTO o VIDEO con el texto en el mismo mensaje.',
-          });
-        }
-        // Si NO toca avisar (menos de 7 horas), no respondemos nada
+
+        // IMPORTANTE: return aquí para que NO siga procesando nada más en este update
+        return;
       }
+
+      // Si llega aquí es porque NO cumplió las condiciones (mensaje inválido)
+      if (userId && debeEnviarAviso(userId)) {
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+          chat_id: chatId,
+          text: 'Para publicar en CDCAM envía una FOTO o VIDEO con el texto en el mismo mensaje.',
+        });
+      }
+      // Si NO toca avisar (menos de 7 horas), no respondemos nada
+
     } catch (err) {
       console.error('Error al procesar update:', err.message);
     }
