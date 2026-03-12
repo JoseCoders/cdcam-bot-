@@ -18,6 +18,19 @@ const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 
 app.use(bodyParser.json());
 
+// Función para recortar texto a 60 caracteres
+function truncar(texto, max = 60) {
+  if (!texto) return '';
+  return texto.length > max ? texto.slice(0, max) + '…' : texto;
+}
+
+// Aquí guardamos en memoria el último mensaje
+let ultimoItem = {
+  image_url: 'https://tusitio.com/wp-content/uploads/default.jpg', // cámbiala por la que quieras
+  text: ''
+};
+
+// Webhook de Telegram
 app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
   // Responder inmediatamente a Telegram
   res.status(200).send('ok');
@@ -25,11 +38,19 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
   const update = req.body;
   console.log('Update recibido:', JSON.stringify(update, null, 2));
 
-  // Procesar el mensaje de forma asíncrona
   (async () => {
     try {
       if (update.message && update.message.chat && update.message.text) {
         const chatId = update.message.chat.id;
+        const texto = update.message.text;
+
+        // Guardar versión recortada para la web (máx 60 caracteres)
+        ultimoItem.text = truncar(texto, 60);
+
+        // (Opcional) si en algún momento quieres que la imagen dependa del mensaje,
+        // aquí podrías cambiar ultimoItem.image_url.
+
+        // Respuesta al usuario en Telegram
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
           text: 'Mensaje recibido por el webhook ✅',
@@ -39,6 +60,11 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
       console.error('Error al procesar update:', err.message);
     }
   })();
+});
+
+// Endpoint para WordPress: devuelve solo imagen + texto (máx 60 chars)
+app.get('/api/ultimo-item', (req, res) => {
+  res.json(ultimoItem);
 });
 
 const PORT = process.env.PORT || 3000;
