@@ -25,11 +25,16 @@ function truncar(texto, max = 60) {
   return texto.length > max ? texto.slice(0, max) + '…' : texto;
 }
 
-// Aquí guardamos en memoria el último mensaje (imagen + texto)
-let ultimoItem = {
-  image_url: '', // la llenaremos desde Telegram
-  text: ''
-};
+// Aquí guardamos en memoria los últimos mensajes (imagen + texto)
+let items = []; // cada item: { image_url, text }
+
+// Añadir un nuevo item y mantener máximo 50
+function agregarItem(image_url, text) {
+  items.unshift({ image_url, text }); // agrega al inicio (más reciente primero)
+  if (items.length > 50) {
+    items.pop(); // elimina el más viejo
+  }
+}
 
 // Función para obtener URL pública del archivo (foto) de Telegram
 async function obtenerUrlFoto(photoArray) {
@@ -76,8 +81,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
           const caption = update.message.caption || '';
           const textoRecortado = truncar(caption, 60);
 
-          ultimoItem.image_url = fotoUrl;
-          ultimoItem.text = textoRecortado;
+          agregarItem(fotoUrl, textoRecortado);
 
           await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: chatId,
@@ -89,12 +93,10 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
           const texto = update.message.text;
           const textoRecortado = truncar(texto, 60);
 
-          // En este caso no hay imagen nueva; podrías dejar la anterior o una por defecto
-          if (!ultimoItem.image_url) {
-            // Imagen por defecto (opcional)
-            ultimoItem.image_url = 'https://cdcam.co/wp-content/uploads/default.jpg';
-          }
-          ultimoItem.text = textoRecortado;
+          // Sin foto, usamos una imagen por defecto
+          const imageUrlPorDefecto = 'https://cdcam.co/wp-content/uploads/default.jpg';
+
+          agregarItem(imageUrlPorDefecto, textoRecortado);
 
           await axios.post(`${TELEGRAM_API}/sendMessage`, {
             chat_id: chatId,
@@ -108,9 +110,9 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
   })();
 });
 
-// Endpoint para WordPress: devuelve solo imagen + texto (máx 60 chars)
-app.get('/api/ultimo-item', (req, res) => {
-  res.json(ultimoItem);
+// Endpoint para WordPress: devuelve lista de items (máx 50)
+app.get('/api/ultimos-items', (req, res) => {
+  res.json(items);
 });
 
 const PORT = process.env.PORT || 3000;
