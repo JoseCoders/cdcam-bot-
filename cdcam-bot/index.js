@@ -22,9 +22,9 @@ if (!DATABASE_URL) {
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 const TELEGRAM_FILE_API = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}`;
 
-// Pool de conexión a Supabase (PostgreSQL)
+// Pool de conexión a Supabase (PostgreSQL, session pooler IPv4)
 const pool = new Pool({
-  connectionString: DATABASE_URL.replace('postgresql://', 'postgres://'),
+  connectionString: DATABASE_URL, // ej: postgresql://postgres.ecqamfssdmqzljemakcp:TUPASS@aws-0-us-west-2.pooler.supabase.com:5432/postgres
   ssl: { rejectUnauthorized: false },
 });
 
@@ -174,7 +174,14 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         const fecha = d.toISOString().slice(0, 10);
         const hora = d.toTimeString().slice(0, 5);
 
-        await agregarItem(mediaUrl, mediaType, textoRecortado, nombre, fecha, hora);
+        await agregarItem(
+          mediaUrl,
+          mediaType,
+          textoRecortado,
+          nombre,
+          fecha,
+          hora
+        );
 
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
