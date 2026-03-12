@@ -26,11 +26,12 @@ function truncar(texto, max = 60) {
 }
 
 // Lista en memoria de los últimos posts válidos (foto + texto)
-let items = []; // { image_url, text }
+// Cada item: { image_url, text, nombre, fecha, hora }
+let items = [];
 
 // Añadir un nuevo item y mantener máximo 50
-function agregarItem(image_url, text) {
-  items.unshift({ image_url, text }); // más reciente primero
+function agregarItem(image_url, text, nombre, fecha, hora) {
+  items.unshift({ image_url, text, nombre, fecha, hora }); // más reciente primero
   if (items.length > 50) {
     items.pop(); // elimina el más viejo
   }
@@ -78,8 +79,22 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         const caption = update.message.caption;
         const textoRecortado = truncar(caption, 60);
 
+        // Nombre (solo el first_name para mostrar)
+        const from = update.message.from || {};
+        const nombre = from.first_name || 'Productor';
+
+        // Fecha y hora a partir de update.message.date (epoch segundos)
+        const timestampMs = update.message.date
+          ? update.message.date * 1000
+          : Date.now();
+        const d = new Date(timestampMs);
+
+        // Formato simple: YYYY-MM-DD y HH:MM (ajusta si quieres otro formato)
+        const fecha = d.toISOString().slice(0, 10); // 2026-03-12
+        const hora = d.toTimeString().slice(0, 5);  // 10:58
+
         // Guardar en la lista de items
-        agregarItem(fotoUrl, textoRecortado);
+        agregarItem(fotoUrl, textoRecortado, nombre, fecha, hora);
 
         // Respuesta al usuario
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
@@ -87,7 +102,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
           text: 'Producto publicado en CDCAM correctamente ✅',
         });
       } else {
-        // Opcional: responder que el formato no es válido
+        // Mensaje inválido: no se guarda nada
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
           text: 'Para publicar en CDCAM envía una FOTO con el texto en el mismo mensaje.',
