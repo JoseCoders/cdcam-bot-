@@ -29,6 +29,11 @@ function truncar(texto, max = 60) {
 // Cada item: { image_url, text, nombre, fecha, hora }
 let items = [];
 
+// Mapa en memoria: último timestamp (ms) en que se le mostró el aviso a cada usuario
+// Clave: userId (from.id)
+const avisosPorUsuario = {};
+const SIETE_HORAS_MS = 7 * 60 * 60 * 1000; // 7 horas en milisegundos
+
 // Añadir un nuevo item y mantener máximo 50
 function agregarItem(image_url, text, nombre, fecha, hora) {
   items.unshift({ image_url, text, nombre, fecha, hora }); // más reciente primero
@@ -59,6 +64,29 @@ async function obtenerUrlFoto(photoArray) {
   return fileUrl;
 }
 
+// ¿Toca enviar aviso a este usuario ahora?
+function debeEnviarAviso(userId) {
+  const ahora = Date.now();
+  const ultimo = avisosPorUsuario[userId];
+
+  // Nunca se ha enviado → sí se envía y se registra ahora
+  if (!ultimo) {
+    avisosPorUsuario[userId] = ahora;
+    return true;
+  }
+
+  const diff = ahora - ultimo; // ms desde el último aviso
+
+  if (diff >= SIETE_HORAS_MS) {
+    // Pasaron 7 horas o más → se permite de nuevo y actualizamos timestamp
+    avisosPorUsuario[userId] = ahora;
+    return true;
+  }
+
+  // Todavía no han pasado 7 horas → no enviar aviso
+  return false;
+}
+
 // Webhook de Telegram
 app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
   // Responder rápido a Telegram
@@ -72,6 +100,8 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
       if (!update.message || !update.message.chat) return;
 
       const chatId = update.message.chat.id;
+      const from = update.message.from || {};
+      const userId = from.id; // ID único del usuario
 
       // Solo aceptamos: foto + caption (texto en el mismo mensaje)
       if (update.message.photo && update.message.caption) {
@@ -79,34 +109,34 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         const caption = update.message.caption;
         const textoRecortado = truncar(caption, 60);
 
-        // Nombre (solo el first_name para mostrar)
-        const from = update.message.from || {};
         const nombre = from.first_name || 'Productor';
 
-        // Fecha y hora a partir de update.message.date (epoch segundos)
         const timestampMs = update.message.date
           ? update.message.date * 1000
           : Date.now();
         const d = new Date(timestampMs);
 
-        // Formato simple: YYYY-MM-DD y HH:MM (ajusta si quieres otro formato)
         const fecha = d.toISOString().slice(0, 10); // 2026-03-12
         const hora = d.toTimeString().slice(0, 5);  // 10:58
 
         // Guardar en la lista de items
         agregarItem(fotoUrl, textoRecortado, nombre, fecha, hora);
 
-        // Respuesta al usuario
+        // Respuesta al usuario (publicación correcta)
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
           text: 'Producto publicado en CDCAM correctamente ✅',
         });
       } else {
         // Mensaje inválido: no se guarda nada
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: 'Para publicar en CDCAM envía una FOTO con el texto en el mismo mensaje.',
-        });
+        // Solo enviamos el aviso si han pasado al menos 7 horas desde el último aviso a este usuario
+        if (userId && debeEnviarAviso(userId)) {
+          await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: chatId,
+            text: 'Para publicar en CDCAM envía una FOTO con el texto en el mismo mensaje.',
+          });
+        }
+        // Si NO toca avisar (menos de 7 horas), no respondemos nada
       }
     } catch (err) {
       console.error('Error al procesar update:', err.message);
