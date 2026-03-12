@@ -19,10 +19,40 @@ const TELEGRAM_FILE_API = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}`;
 
 app.use(bodyParser.json());
 
-// Función para recortar texto a 60 caracteres
+// Enmascarar números: si encuentra una secuencia con >=10 dígitos totales,
+// deja los primeros 6 dígitos visibles y el resto los reemplaza por '*'.
+function maskPhones(texto) {
+  if (!texto) return texto;
+
+  const chars = texto.split('');
+  const len = chars.length;
+  const digitPositions = [];
+
+  // Guardar posiciones de todos los dígitos
+  for (let i = 0; i < len; i++) {
+    if (/\d/.test(chars[i])) {
+      digitPositions.push(i);
+    }
+  }
+
+  // Si hay menos de 10 dígitos en todo el texto, no hacemos nada
+  if (digitPositions.length < 10) return texto;
+
+  // Mantenemos visibles solo los primeros 6 dígitos; el resto se enmascara
+  const visibleCount = 6;
+  for (let i = visibleCount; i < digitPositions.length; i++) {
+    const idx = digitPositions[i];
+    chars[idx] = '*';
+  }
+
+  return chars.join('');
+}
+
+// Función para recortar texto a 60 caracteres, aplicando primero el enmascarado
 function truncar(texto, max = 60) {
   if (!texto) return '';
-  return texto.length > max ? texto.slice(0, max) + '…' : texto;
+  const masked = maskPhones(texto);
+  return masked.length > max ? masked.slice(0, max) + '…' : masked;
 }
 
 // Lista en memoria de los últimos posts válidos (media + texto)
@@ -129,6 +159,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
           return;
         }
 
+        // Enmascarar y recortar texto a 60 caracteres
         const textoRecortado = truncar(caption, 60);
 
         // Nombre (solo las primeras 4 letras)
