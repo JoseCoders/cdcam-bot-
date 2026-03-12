@@ -12,6 +12,9 @@ app.use(bodyParser.json());
 
 // Endpoint del webhook (seguro por secreto en la URL)
 app.post(`/webhook/${WEBHOOK_SECRET}`, async (req, res) => {
+  // Responder rápido a Telegram
+  res.send('ok');
+
   const update = req.body;
   console.log('Update recibido:', JSON.stringify(update, null, 2));
 
@@ -26,9 +29,8 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, async (req, res) => {
   } catch (err) {
     console.error('Error al procesar update:', err.message);
   }
-
-  res.send('ok');
 });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
