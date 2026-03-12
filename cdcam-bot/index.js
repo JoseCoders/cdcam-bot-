@@ -25,27 +25,25 @@ function truncar(texto, max = 60) {
   return texto.length > max ? texto.slice(0, max) + '…' : texto;
 }
 
-// Aquí guardamos en memoria los últimos mensajes (imagen + texto)
-let items = []; // cada item: { image_url, text }
+// Lista en memoria de los últimos posts válidos (foto + texto)
+let items = []; // { image_url, text }
 
 // Añadir un nuevo item y mantener máximo 50
 function agregarItem(image_url, text) {
-  items.unshift({ image_url, text }); // agrega al inicio (más reciente primero)
+  items.unshift({ image_url, text }); // más reciente primero
   if (items.length > 50) {
     items.pop(); // elimina el más viejo
   }
 }
 
-// Función para obtener URL pública del archivo (foto) de Telegram
+// Obtener URL pública de la foto desde Telegram
 async function obtenerUrlFoto(photoArray) {
   if (!photoArray || !Array.isArray(photoArray) || photoArray.length === 0) {
     return '';
   }
 
-  // Tomamos la última (normalmente la de mayor resolución)
   const fileId = photoArray[photoArray.length - 1].file_id;
 
-  // 1) Pedir info del archivo
   const resp = await axios.get(`${TELEGRAM_API}/getFile`, {
     params: { file_id: fileId },
   });
@@ -56,15 +54,13 @@ async function obtenerUrlFoto(photoArray) {
   }
 
   const filePath = resp.data.result.file_path;
-  // 2) Construir URL pública de descarga
   const fileUrl = `${TELEGRAM_FILE_API}/${filePath}`;
-
   return fileUrl;
 }
 
 // Webhook de Telegram
 app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
-  // Responder inmediatamente a Telegram
+  // Responder rápido a Telegram
   res.status(200).send('ok');
 
   const update = req.body;
@@ -72,37 +68,30 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
 
   (async () => {
     try {
-      if (update.message && update.message.chat) {
-        const chatId = update.message.chat.id;
+      if (!update.message || !update.message.chat) return;
 
-        // Caso 1: foto + caption
-        if (update.message.photo) {
-          const fotoUrl = await obtenerUrlFoto(update.message.photo);
-          const caption = update.message.caption || '';
-          const textoRecortado = truncar(caption, 60);
+      const chatId = update.message.chat.id;
 
-          agregarItem(fotoUrl, textoRecortado);
+      // Solo aceptamos: foto + caption (texto en el mismo mensaje)
+      if (update.message.photo && update.message.caption) {
+        const fotoUrl = await obtenerUrlFoto(update.message.photo);
+        const caption = update.message.caption;
+        const textoRecortado = truncar(caption, 60);
 
-          await axios.post(`${TELEGRAM_API}/sendMessage`, {
-            chat_id: chatId,
-            text: 'Imagen y texto recibidos por el webhook ✅',
-          });
+        // Guardar en la lista de items
+        agregarItem(fotoUrl, textoRecortado);
 
-        // Caso 2: solo texto
-        } else if (update.message.text) {
-          const texto = update.message.text;
-          const textoRecortado = truncar(texto, 60);
-
-          // Sin foto, usamos una imagen por defecto
-          const imageUrlPorDefecto = 'https://cdcam.co/wp-content/uploads/default.jpg';
-
-          agregarItem(imageUrlPorDefecto, textoRecortado);
-
-          await axios.post(`${TELEGRAM_API}/sendMessage`, {
-            chat_id: chatId,
-            text: 'Mensaje recibido por el webhook ✅',
-          });
-        }
+        // Respuesta al usuario
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+          chat_id: chatId,
+          text: 'Producto publicado en CDCAM correctamente ✅',
+        });
+      } else {
+        // Opcional: responder que el formato no es válido
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+          chat_id: chatId,
+          text: 'Para publicar en CDCAM envía una FOTO con el texto en el mismo mensaje.',
+        });
       }
     } catch (err) {
       console.error('Error al procesar update:', err.message);
