@@ -9,6 +9,11 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const DATABASE_URL = process.env.DATABASE_URL;
 
+//Notificacion de OneSignal
+
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
+const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
+
 if (!TELEGRAM_TOKEN) {
   console.error('ERROR: TELEGRAM_TOKEN no está definido');
 }
@@ -76,6 +81,31 @@ async function agregarItem(media_url, media_type, text, nombre, fecha, hora) {
     );
   } catch (err) {
     console.error('Error insertando publicación en BD:', err.message);
+  }
+}
+
+// Enviar notificación push cuando se publica algo nuevo
+async function enviarNotificacionOneSignal(nombre, texto) {
+  try {
+    await axios.post(
+      'https://onesignal.com/api/v1/notifications',
+      {
+        app_id: ONESIGNAL_APP_ID,
+        headings: { en: 'Nueva publicación en CDCAM' },
+        contents: { en: `${nombre} publicó: ${texto}` },
+        url: 'https://cdcam.co',
+        included_segments: ['Subscribed Users'],
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${ONESIGNAL_API_KEY}`,
+        },
+      }
+    );
+    console.log('Notificación OneSignal enviada');
+  } catch (err) {
+    console.error('Error enviando notificación OneSignal:', err.message);
   }
 }
 
@@ -182,6 +212,8 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
           fecha,
           hora
         );
+
+        await enviarNotificacionOneSignal(nombre, textoRecortado); // Notificacion de OneSignal
 
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
