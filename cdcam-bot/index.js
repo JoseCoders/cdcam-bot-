@@ -93,8 +93,9 @@ async function enviarNotificacionOneSignal(nombre, texto) {
         app_id: ONESIGNAL_APP_ID,
         headings: { en: 'Nueva publicación en CDCAM' },
         contents: { en: `${nombre} publicó: ${texto}` },
-        url: 'https://cdcam.co',
+        url: 'https://cdcam.co/publicaciones-campesinas-tiempo-real/#publicaciones-campesinas',
         included_segments: ['Total Subscriptions'],
+        chrome_web_icon: 'https://cdcam.co/wp-content/uploads/2026/04/cropped-Logo-Cdcam1-1.png',
       },
       {
         headers: {
