@@ -87,7 +87,7 @@ async function agregarItem(media_url, media_type, text, nombre, fecha, hora) {
 // Enviar notificación push cuando se publica algo nuevo
 async function enviarNotificacionOneSignal(nombre, texto) {
   try {
-    await axios.post(
+    const response = await axios.post(
       'https://onesignal.com/api/v1/notifications',
       {
         app_id: ONESIGNAL_APP_ID,
@@ -103,9 +103,9 @@ async function enviarNotificacionOneSignal(nombre, texto) {
         },
       }
     );
-    console.log('Notificación OneSignal enviada');
+    console.log('Notificación OneSignal enviada. Respuesta:', JSON.stringify(response.data));
   } catch (err) {
-    console.error('Error enviando notificación OneSignal:', err.message);
+    console.error('Error enviando notificación OneSignal:', err.response ? JSON.stringify(err.response.data) : err.message);
   }
 }
 
