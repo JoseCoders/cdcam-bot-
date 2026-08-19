@@ -94,7 +94,7 @@ async function enviarNotificacionOneSignal(nombre, texto) {
         headings: { en: 'Nueva publicación en CDCAM' },
         contents: { en: `${nombre} publicó: ${texto}` },
         url: 'https://cdcam.co',
-        included_segments: ['Subscribed Users'],
+        included_segments: ['Total Subscriptions'],
       },
       {
         headers: {
