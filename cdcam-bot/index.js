@@ -18,7 +18,7 @@ const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 
 const GRUPO_NOTIFICACIONES_ID = process.env.GRUPO_NOTIFICACIONES_ID;
 
-const NUMERO_WHATSAPP = '3024784695';  // Número de WhatsApp para contacto en notificaciones
+const NUMERO_WHATSAPP = process.env.NUMERO_WHATSAPP; // Número de WhatsApp para contacto en notificaciones
 
 if (!TELEGRAM_TOKEN) {
   console.error('ERROR: TELEGRAM_TOKEN no está definido');
@@ -122,7 +122,6 @@ async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
   try {
     const textoConNumerosOcultos = maskPhones(textoCompleto);
     const nombreMostrar = nombre;
-    const NUMERO_WHATSAPP = '3024784695'; // Número de WhatsApp para contacto en notificaciones
 
     const mensaje =
       `🌾 *NUEVO PRODUCTO DISPONIBLE - CDCAM*\n` +
