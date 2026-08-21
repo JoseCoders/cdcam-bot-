@@ -117,32 +117,23 @@ async function enviarNotificacionOneSignal(nombre, texto) {
 
 
 // Enviar notificación al grupo interno de Telegram (para compartir manualmente por WhatsApp)
-async function enviarNotificacionGrupoInterno(nombre, textoCompleto, mediaUrl, mediaType) {
+async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
   try {
     const textoConNumerosOcultos = maskPhones(textoCompleto);
 
-    const caption =
+    const mensaje =
       `🌾 *Nuevo producto publicado en CDCAM*\n\n` +
       `👤 Agricultor: ${nombre}\n` +
       `📋 Detalle: ${textoConNumerosOcultos}\n\n` +
       `🔗 Ver publicación completa:\n` +
       `https://cdcam.co/publicaciones-campesinas-tiempo-real/`;
 
-    if (mediaType === 'photo') {
-      await axios.post(`${TELEGRAM_API}/sendPhoto`, {
-        chat_id: GRUPO_NOTIFICACIONES_ID,
-        photo: mediaUrl,
-        caption: caption,
-        parse_mode: 'Markdown',
-      });
-    } else if (mediaType === 'video') {
-      await axios.post(`${TELEGRAM_API}/sendVideo`, {
-        chat_id: GRUPO_NOTIFICACIONES_ID,
-        video: mediaUrl,
-        caption: caption,
-        parse_mode: 'Markdown',
-      });
-    }
+    await axios.post(`${TELEGRAM_API}/sendMessage`, {
+      chat_id: GRUPO_NOTIFICACIONES_ID,
+      text: mensaje,
+      parse_mode: 'Markdown',
+    });
+
     console.log('Notificación enviada al grupo interno de Telegram.');
   } catch (err) {
     console.error('Error enviando al grupo interno:', err.response ? JSON.stringify(err.response.data) : err.message);
@@ -255,7 +246,7 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
 
         await enviarNotificacionOneSignal(nombre, textoRecortado); // Notificacion de OneSignal
         
-        await enviarNotificacionGrupoInterno(nombre, caption, mediaUrl, mediaType); // Notificacion al grupo interno para WhatsApp
+        await enviarNotificacionGrupoInterno(nombre, caption); // Notificacion al grupo interno para WhatsApp
 
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
