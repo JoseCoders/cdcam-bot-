@@ -18,6 +18,8 @@ const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 
 const GRUPO_NOTIFICACIONES_ID = process.env.GRUPO_NOTIFICACIONES_ID;
 
+const NUMERO_WHATSAPP = '3024784695';  // Número de WhatsApp para contacto en notificaciones
+
 if (!TELEGRAM_TOKEN) {
   console.error('ERROR: TELEGRAM_TOKEN no está definido');
 }
@@ -128,7 +130,7 @@ async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
       `👤 *Vendedor:* ${nombreMostrar}\n` +
       `📋 *Detalle:* ${textoConNumerosOcultos}\n\n` +
       `📞 ¿Quieres más detalles o contactar al vendedor?\n` +
-      `Escríbenos y con gusto te ayudamos.\n\n` +
+      `Escríbenos por WhatsApp al ${NUMERO_WHATSAPP} y con gusto te ayudamos.\n\n` +
       `🔗 *Ver publicación completa:*\n` +
       `https://cdcam.co/publicaciones-campesinas-tiempo-real/#publicaciones-campesinas`;
 
