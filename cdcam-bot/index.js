@@ -127,7 +127,7 @@ async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
     const mensaje =
       `🌾 *NUEVO PRODUCTO DISPONIBLE - CDCAM*\n` +
       `_(Este WhatsApp es solo de notificaciones)_\n\n` +
-      `👤 *Vendedor:* ${nombreMostrar}\n` +
+      `👤 *Vendedor verificado:* ${nombreMostrar}\n` +
       `📋 *Detalle:* ${textoConNumerosOcultos}\n\n` +
       `📞 ¿Quieres más detalles o contactar al vendedor?\n` +
       `Escríbenos por WhatsApp al ${NUMERO_WHATSAPP} y con gusto te ayudamos.\n\n` +
