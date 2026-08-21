@@ -14,6 +14,10 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 
+// Grupo interno de notificaciones (Telegram) para compartir manualmente por WhatsApp
+
+const GRUPO_NOTIFICACIONES_ID = process.env.GRUPO_NOTIFICACIONES_ID;
+
 if (!TELEGRAM_TOKEN) {
   console.error('ERROR: TELEGRAM_TOKEN no está definido');
 }
@@ -107,6 +111,41 @@ async function enviarNotificacionOneSignal(nombre, texto) {
     console.log('Notificación OneSignal enviada. Respuesta:', JSON.stringify(response.data));
   } catch (err) {
     console.error('Error enviando notificación OneSignal:', err.response ? JSON.stringify(err.response.data) : err.message);
+  }
+}
+
+
+
+// Enviar notificación al grupo interno de Telegram (para compartir manualmente por WhatsApp)
+async function enviarNotificacionGrupoInterno(nombre, textoCompleto, mediaUrl, mediaType) {
+  try {
+    const textoConNumerosOcultos = maskPhones(textoCompleto);
+
+    const caption =
+      `🌾 *Nuevo producto publicado en CDCAM*\n\n` +
+      `👤 Agricultor: ${nombre}\n` +
+      `📋 Detalle: ${textoConNumerosOcultos}\n\n` +
+      `🔗 Ver publicación completa:\n` +
+      `https://cdcam.co/publicaciones-campesinas-tiempo-real/`;
+
+    if (mediaType === 'photo') {
+      await axios.post(`${TELEGRAM_API}/sendPhoto`, {
+        chat_id: GRUPO_NOTIFICACIONES_ID,
+        photo: mediaUrl,
+        caption: caption,
+        parse_mode: 'Markdown',
+      });
+    } else if (mediaType === 'video') {
+      await axios.post(`${TELEGRAM_API}/sendVideo`, {
+        chat_id: GRUPO_NOTIFICACIONES_ID,
+        video: mediaUrl,
+        caption: caption,
+        parse_mode: 'Markdown',
+      });
+    }
+    console.log('Notificación enviada al grupo interno de Telegram.');
+  } catch (err) {
+    console.error('Error enviando al grupo interno:', err.response ? JSON.stringify(err.response.data) : err.message);
   }
 }
 
@@ -215,6 +254,8 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         );
 
         await enviarNotificacionOneSignal(nombre, textoRecortado); // Notificacion de OneSignal
+        
+        await enviarNotificacionGrupoInterno(nombre, caption, mediaUrl, mediaType); // Notificacion al grupo interno para WhatsApp
 
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
