@@ -118,11 +118,11 @@ async function enviarNotificacionOneSignal(nombre, texto) {
 
 
 
-// Enviar notificación al grupo interno de Telegram (para compartir manualmente por WhatsApp)
 async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
   try {
     const textoConNumerosOcultos = maskPhones(textoCompleto);
     const nombreMostrar = nombre;
+    const NUMERO_WHATSAPP = '3024784695'; // Número de WhatsApp para contacto en notificaciones
 
     const mensaje =
       `🌾 *NUEVO PRODUCTO DISPONIBLE - CDCAM*\n` +
@@ -137,7 +137,8 @@ async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
     await axios.post(`${TELEGRAM_API}/sendMessage`, {
       chat_id: GRUPO_NOTIFICACIONES_ID,
       text: mensaje,
-      parse_mode: 'Markdown',
+      // Sin parse_mode: se envía como texto plano
+      // para que los * y _ sobrevivan al copiar/pegar en WhatsApp
     });
 
     console.log('Notificación enviada al grupo interno de Telegram.');
