@@ -120,13 +120,17 @@ async function enviarNotificacionOneSignal(nombre, texto) {
 async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
   try {
     const textoConNumerosOcultos = maskPhones(textoCompleto);
+    const nombreMostrar = obtenerNombreMostrar(nombre);
 
     const mensaje =
-      `🌾 *Nuevo producto publicado en CDCAM*\n\n` +
-      `👤 Agricultor: ${nombre}\n` +
-      `📋 Detalle: ${textoConNumerosOcultos}\n\n` +
-      `🔗 Ver publicación completa:\n` +
-      `https://cdcam.co/publicaciones-campesinas-tiempo-real/`;
+      `🌾 *NUEVO PRODUCTO DISPONIBLE - CDCAM*\n` +
+      `_(Este WhatsApp es solo de notificaciones)_\n\n` +
+      `👤 *Vendedor:* ${nombreMostrar}\n` +
+      `📋 *Detalle:* ${textoConNumerosOcultos}\n\n` +
+      `📞 ¿Quieres más detalles o contactar al vendedor?\n` +
+      `Escríbenos y con gusto te ayudamos.\n\n` +
+      `🔗 *Ver publicación completa:*\n` +
+      `https://cdcam.co/publicaciones-campesinas-tiempo-real/#publicaciones-campesinas`;
 
     await axios.post(`${TELEGRAM_API}/sendMessage`, {
       chat_id: GRUPO_NOTIFICACIONES_ID,
@@ -139,7 +143,6 @@ async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
     console.error('Error enviando al grupo interno:', err.response ? JSON.stringify(err.response.data) : err.message);
   }
 }
-
 // Obtener URL pública de un archivo Telegram
 async function obtenerUrlArchivo(fileId) {
   if (!fileId) return '';
