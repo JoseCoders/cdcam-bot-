@@ -120,7 +120,7 @@ async function enviarNotificacionOneSignal(nombre, texto) {
 async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
   try {
     const textoConNumerosOcultos = maskPhones(textoCompleto);
-    const nombreMostrar = obtenerNombreMostrar(nombre);
+    const nombreMostrar = nombre;
 
     const mensaje =
       `🌾 *NUEVO PRODUCTO DISPONIBLE - CDCAM*\n` +
