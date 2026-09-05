@@ -273,9 +273,6 @@ async function enviarResumenDiarioWhatsApp() {
               components: [
                 {
                   type: 'body',
-                  components: [
-                {
-                  type: 'body',
                   parameters: [
                     { type: 'text', parameter_name: 'nombre', text: c.nombre || 'comprador' },
                     { type: 'text', parameter_name: 'cantidad', text: String(cantidad) }
