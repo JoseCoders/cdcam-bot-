@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
 const { Pool } = require('pg');
+const cron = require('node-cron');
 
 const app = express();
 
@@ -19,6 +20,14 @@ const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 const GRUPO_NOTIFICACIONES_ID = process.env.GRUPO_NOTIFICACIONES_ID;
 
 const NUMERO_WHATSAPP = process.env.NUMERO_WHATSAPP; // Número de WhatsApp para contacto en notificaciones
+
+// --- WhatsApp Cloud API (notificaciones a compradores) ---
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const WHATSAPP_ENABLED = process.env.WHATSAPP_ENABLED;
+const WHATSAPP_TEMPLATE_OPTIN = process.env.WHATSAPP_TEMPLATE_OPTIN;
+const WHATSAPP_TEMPLATE_RESUMEN = process.env.WHATSAPP_TEMPLATE_RESUMEN;
 
 if (!TELEGRAM_TOKEN) {
   console.error('ERROR: TELEGRAM_TOKEN no está definido');
@@ -116,8 +125,6 @@ async function enviarNotificacionOneSignal(nombre, texto) {
   }
 }
 
-
-
 async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
   try {
     const textoConNumerosOcultos = maskPhones(textoCompleto);
@@ -145,6 +152,7 @@ async function enviarNotificacionGrupoInterno(nombre, textoCompleto) {
     console.error('Error enviando al grupo interno:', err.response ? JSON.stringify(err.response.data) : err.message);
   }
 }
+
 // Obtener URL pública de un archivo Telegram
 async function obtenerUrlArchivo(fileId) {
   if (!fileId) return '';
@@ -183,7 +191,118 @@ function debeEnviarAviso(userId) {
   return false;
 }
 
-// Webhook de Telegram
+// ============================================================
+// FUNCIONES DE WHATSAPP (invitación de opt-in y resumen diario)
+// ============================================================
+
+// Enviar plantilla de invitación (una sola vez, a un comprador que aún no ha aceptado)
+async function enviarInvitacionOptIn(telefono, nombre) {
+  if (WHATSAPP_ENABLED !== 'true') {
+    console.log('WhatsApp desactivado (WHATSAPP_ENABLED != true). No se envía invitación.');
+    return;
+  }
+  try {
+    await axios.post(
+      `https://graph.facebook.com/v25.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        to: telefono,
+        type: 'template',
+        template: {
+          name: WHATSAPP_TEMPLATE_OPTIN,
+          language: { code: 'es' },
+          components: [
+            { type: 'body', parameters: [{ type: 'text', text: nombre || 'comprador' }] }
+          ]
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    console.log(`Invitación de WhatsApp enviada a ${nombre} (${telefono})`);
+  } catch (err) {
+    console.error(`Error invitando a ${telefono}:`, err.response ? JSON.stringify(err.response.data) : err.message);
+  }
+}
+
+// Enviar resumen diario a todos los compradores que ya aceptaron (opted_in = true)
+async function enviarResumenDiarioWhatsApp() {
+  if (WHATSAPP_ENABLED !== 'true') {
+    console.log('WhatsApp desactivado (WHATSAPP_ENABLED != true). No se envía resumen.');
+    return;
+  }
+
+  try {
+    // Fecha de "hoy" usando el mismo offset horario que ya usas para guardar publicaciones
+    const ahora = new Date();
+    const offsetMs = -5 * 60 * 60 * 1000;
+    const fechaHoy = new Date(ahora.getTime() + offsetMs).toISOString().slice(0, 10);
+
+    const resultPublicaciones = await pool.query(
+      `SELECT nombre, text FROM publicaciones WHERE fecha = $1 ORDER BY created_at ASC`,
+      [fechaHoy]
+    );
+    const publicaciones = resultPublicaciones.rows;
+
+    if (publicaciones.length === 0) {
+      console.log('No hubo publicaciones hoy, no se envía resumen de WhatsApp.');
+      return;
+    }
+
+    const resultCompradores = await pool.query(
+      `SELECT telefono, nombre FROM compradores_CDCAM WHERE opted_in = true`
+    );
+    const compradores = resultCompradores.rows;
+    const cantidad = publicaciones.length;
+
+    for (const c of compradores) {
+      try {
+        await axios.post(
+          `https://graph.facebook.com/v25.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+          {
+            messaging_product: 'whatsapp',
+            to: c.telefono,
+            type: 'template',
+            template: {
+              name: WHATSAPP_TEMPLATE_RESUMEN,
+              language: { code: 'es' },
+              components: [
+                {
+                  type: 'body',
+                  parameters: [
+                    { type: 'text', text: c.nombre || 'comprador' },
+                    { type: 'text', text: String(cantidad) }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      } catch (err) {
+        console.error(`Error enviando resumen a ${c.telefono}:`, err.response ? JSON.stringify(err.response.data) : err.message);
+      }
+    }
+
+    console.log(`Resumen diario de WhatsApp enviado a ${compradores.length} compradores (${cantidad} publicaciones hoy).`);
+  } catch (err) {
+    console.error('Error generando resumen diario de WhatsApp:', err.message);
+  }
+}
+
+// ============================================================
+// WEBHOOK DE TELEGRAM (ya existente)
+// ============================================================
+
 app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
   res.status(200).send('ok');
 
@@ -250,8 +369,11 @@ app.post(`/webhook/${WEBHOOK_SECRET}`, (req, res) => {
         );
 
         await enviarNotificacionOneSignal(nombre, textoRecortado); // Notificacion de OneSignal
-        
+
         await enviarNotificacionGrupoInterno(nombre, caption); // Notificacion al grupo interno para WhatsApp
+
+        // Nota: ya NO se envía WhatsApp aquí por cada publicación individual.
+        // El aviso a compradores se manda una vez al día como resumen (ver cron al final del archivo).
 
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
@@ -288,6 +410,88 @@ app.get('/api/ultimos-items', async (req, res) => {
     res.json([]);
   }
 });
+
+// ============================================================
+// WEBHOOK DE WHATSAPP (verificación + respuestas de botones)
+// ============================================================
+
+// Verificación del webhook (Meta la llama una sola vez al configurar)
+app.get('/webhook/whatsapp', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === WHATSAPP_VERIFY_TOKEN) {
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+// Recibir respuestas de botones (Sí/No) y textos (BAJA)
+app.post('/webhook/whatsapp', async (req, res) => {
+  res.status(200).send('ok');
+
+  try {
+    const entry = req.body.entry?.[0];
+    const change = entry?.changes?.[0];
+    const mensaje = change?.value?.messages?.[0];
+    if (!mensaje) return;
+
+    const telefono = mensaje.from;
+    const botonTexto = mensaje.button?.text || mensaje.interactive?.button_reply?.title || '';
+
+    if (botonTexto) {
+      if (botonTexto.toLowerCase().includes('sí') || botonTexto.toLowerCase().includes('si')) {
+        await pool.query(`UPDATE compradores_CDCAM SET opted_in = true WHERE telefono = $1`, [telefono]);
+        console.log(`Comprador ${telefono} aceptó (botón).`);
+      } else if (botonTexto.toLowerCase().includes('no')) {
+        await pool.query(`UPDATE compradores_CDCAM SET opted_in = false WHERE telefono = $1`, [telefono]);
+        console.log(`Comprador ${telefono} rechazó (botón).`);
+      }
+      return;
+    }
+
+    const texto = mensaje.text?.body?.toLowerCase() || '';
+    if (texto.includes('baja')) {
+      await pool.query(`UPDATE compradores_CDCAM SET opted_in = false WHERE telefono = $1`, [telefono]);
+      console.log(`Comprador ${telefono} se dio de baja (texto).`);
+    }
+  } catch (err) {
+    console.error('Error procesando webhook de WhatsApp:', err.message);
+  }
+});
+
+// Endpoint manual: enviar invitaciones a todos los que aún no han aceptado (usar una sola vez o cuando agregues compradores nuevos)
+app.get('/enviar-invitaciones', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT telefono, nombre FROM compradores_CDCAM WHERE opted_in = false`
+    );
+    for (const c of result.rows) {
+      await enviarInvitacionOptIn(c.telefono, c.nombre);
+    }
+    res.send(`Invitaciones enviadas a ${result.rows.length} compradores.`);
+  } catch (err) {
+    res.status(500).send('Error: ' + err.message);
+  }
+});
+
+// Endpoint manual para forzar el envío del resumen ahora mismo (útil para pruebas)
+app.get('/enviar-resumen-ahora', async (req, res) => {
+  try {
+    await enviarResumenDiarioWhatsApp();
+    res.send('Resumen ejecutado. Revisa los logs para ver el detalle.');
+  } catch (err) {
+    res.status(500).send('Error: ' + err.message);
+  }
+});
+
+// Programar el resumen diario a las 5:00 PM hora Colombia
+cron.schedule('0 17 * * *', () => {
+  console.log('Ejecutando resumen diario de WhatsApp (5:00 PM)...');
+  enviarResumenDiarioWhatsApp();
+}, { timezone: 'America/Bogota' });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
