@@ -254,7 +254,7 @@ async function enviarResumenDiarioWhatsApp() {
     }
 
     const resultCompradores = await pool.query(
-      `SELECT telefono, nombre FROM compradores_CDCAM WHERE opted_in = true`
+      `SELECT telefono, nombre FROM "compradores_CDCAM" WHERE opted_in = true`
     );
     const compradores = resultCompradores.rows;
     const cantidad = publicaciones.length;
@@ -443,10 +443,10 @@ app.post('/webhook/whatsapp', async (req, res) => {
 
     if (botonTexto) {
       if (botonTexto.toLowerCase().includes('sí') || botonTexto.toLowerCase().includes('si')) {
-        await pool.query(`UPDATE compradores_CDCAM SET opted_in = true WHERE telefono = $1`, [telefono]);
+        await pool.query(`UPDATE "compradores_CDCAM" SET opted_in = true WHERE telefono = $1`, [telefono]);
         console.log(`Comprador ${telefono} aceptó (botón).`);
       } else if (botonTexto.toLowerCase().includes('no')) {
-        await pool.query(`UPDATE compradores_CDCAM SET opted_in = false WHERE telefono = $1`, [telefono]);
+        await pool.query(`UPDATE "compradores_CDCAM" SET opted_in = false WHERE telefono = $1`, [telefono]);
         console.log(`Comprador ${telefono} rechazó (botón).`);
       }
       return;
@@ -454,7 +454,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
 
     const texto = mensaje.text?.body?.toLowerCase() || '';
     if (texto.includes('baja')) {
-      await pool.query(`UPDATE compradores_CDCAM SET opted_in = false WHERE telefono = $1`, [telefono]);
+      await pool.query(`UPDATE "compradores_CDCAM" SET opted_in = false WHERE telefono = $1`, [telefono]);
       console.log(`Comprador ${telefono} se dio de baja (texto).`);
     }
   } catch (err) {
@@ -466,7 +466,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
 app.get('/enviar-invitaciones', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT telefono, nombre FROM compradores_CDCAM WHERE opted_in = false`
+      `SELECT telefono, nombre FROM "compradores_CDCAM" WHERE opted_in = false`
     );
     for (const c of result.rows) {
       await enviarInvitacionOptIn(c.telefono, c.nombre);
