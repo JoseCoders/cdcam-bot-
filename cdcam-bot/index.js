@@ -212,7 +212,7 @@ async function enviarInvitacionOptIn(telefono, nombre) {
           name: WHATSAPP_TEMPLATE_OPTIN,
           language: { code: 'es' },
           components: [
-            { type: 'body', parameters: [{ type: 'text', text: nombre || 'comprador' }] }
+            { type: 'body', parameters: [{ type: 'text', parameter_name: 'nombre', text: nombre || 'comprador' }] }
           ]
         }
       },
@@ -273,9 +273,12 @@ async function enviarResumenDiarioWhatsApp() {
               components: [
                 {
                   type: 'body',
+                  components: [
+                {
+                  type: 'body',
                   parameters: [
-                    { type: 'text', text: c.nombre || 'comprador' },
-                    { type: 'text', text: String(cantidad) }
+                    { type: 'text', parameter_name: 'nombre', text: c.nombre || 'comprador' },
+                    { type: 'text', parameter_name: 'cantidad', text: String(cantidad) }
                   ]
                 }
               ]
