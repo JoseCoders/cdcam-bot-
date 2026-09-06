@@ -20,6 +20,7 @@ const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 const GRUPO_NOTIFICACIONES_ID = process.env.GRUPO_NOTIFICACIONES_ID;
 
 const NUMERO_WHATSAPP = process.env.NUMERO_WHATSAPP; // Número de WhatsApp para contacto en notificaciones
+const ADMIN_KEY = process.env.ADMIN_KEY;
 
 // --- WhatsApp Cloud API (notificaciones a compradores) ---
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
@@ -464,6 +465,9 @@ app.post('/webhook/whatsapp', async (req, res) => {
 
 // Endpoint manual: enviar invitaciones a todos los que aún no han aceptado (usar una sola vez o cuando agregues compradores nuevos)
 app.get('/enviar-invitaciones', async (req, res) => {
+  if (req.query.key !== ADMIN_KEY) {
+    return res.sendStatus(403);
+  }
   try {
     const result = await pool.query(
       `SELECT telefono, nombre FROM "compradores_CDCAM" WHERE opted_in = false`
@@ -479,6 +483,9 @@ app.get('/enviar-invitaciones', async (req, res) => {
 
 // Endpoint manual para forzar el envío del resumen ahora mismo (útil para pruebas)
 app.get('/enviar-resumen-ahora', async (req, res) => {
+  if (req.query.key !== ADMIN_KEY) {
+    return res.sendStatus(403);
+  }
   try {
     await enviarResumenDiarioWhatsApp();
     res.send('Resumen ejecutado. Revisa los logs para ver el detalle.');
